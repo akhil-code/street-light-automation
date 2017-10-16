@@ -1,7 +1,142 @@
 import cv2,urllib,sys,math
 import numpy as np
 
-#CLASSES
+#FUNCTIONS
+def getDifferenceHulls():
+    #capturing two reference frames
+    imgFrame2 = camread(host)
+
+    #making duplicates of the above frames
+    imgFrame1Copy = imgFrame1.copy()
+    imgFrame2Copy = imgFrame2.copy()
+
+    #changing the colorspace to grayscale
+    imgFrame1Copy = cv2.cvtColor(imgFrame1Copy,cv2.COLOR_BGR2GRAY)
+    imgFrame2Copy = cv2.cvtColor(imgFrame2Copy,cv2.COLOR_BGR2GRAY)
+
+    #applying gaussianblur
+    imgFrame1Copy = cv2.GaussianBlur(imgFrame1Copy,(5,5),0)
+    imgFrame2Copy = cv2.GaussianBlur(imgFrame2Copy,(5,5),0)
+
+    #finding the difference of the two frames and thresholding the diff
+    imgDifference = cv2.absdiff(imgFrame1Copy,imgFrame2Copy)
+    _,imgThresh = cv2.threshold(imgDifference,30,255,cv2.THRESH_BINARY)
+
+    # cv2.imshow("imgThresh",imgThresh)
+
+    # morphological operations: dilation and erosion
+    kernel = np.ones((5,5),np.uint8)
+    imgThresh = cv2.dilate(imgThresh,kernel,iterations = 1)
+    imgThresh = cv2.dilate(imgThresh,kernel,iterations = 1)
+    imgThresh = cv2.erode(imgThresh,kernel,iterations = 1)
+
+
+    #finding contours of the thresholded image
+    contours, hierarchy = cv2.findContours(imgThresh,cv2.RETR_EXTERNAL,cv2.CHAIN_APPROX_SIMPLE)
+
+    #finding and drawing convex hulls
+    hulls = []  #used to store hulls
+    for cnt in contours:
+        hulls.append(cv2.convexHull(cnt))
+
+    return hulls,imgFrame2
+
+def drawBlobInfoOnImage(blobs,imgFrame2Copy):
+    for i in range(len(blobs)):
+        # if (blobs[i].blnStillBeingTracked == True):
+        rect_corner1 = (blobs[i].currentBoundingRect[0],blobs[i].currentBoundingRect[1])
+        rect_corner2 = (blobs[i].currentBoundingRect[0]+blobs[i].width, blobs[i].currentBoundingRect[1]+blobs[i].height)
+        imgFrame2Copy = cv2.rectangle(imgFrame2Copy, rect_corner1,rect_corner2, (0,0,255))
+
+        # intFontFace = cv2.FONT_HERSHEY_SIMPLEX;
+        # dblFontScale = blobs[i].dblCurrentDiagonalSize / 60.0
+        # intFontThickness = int(round(dblFontScale * 1.0))
+        # cv2.putText(imgFrame2Copy,str(i), blobs[i].centerPositions[0], intFontFace, dblFontScale, (0,255,0), intFontThickness);
+
+def camread(host):
+    stream=urllib.urlopen(host)
+    bytes=''
+    while True:
+        bytes+=stream.read(1024)
+        a = bytes.find('\xff\xd8')
+        b = bytes.find('\xff\xd9')
+        if a!=-1 and b!=-1:
+            jpg = bytes[a:b+2]
+            bytes= bytes[b+2:]
+            i = cv2.imdecode(np.fromstring(jpg, dtype=np.uint8),-1)
+            return i
+
+def drawAndShowContours(imageSize,contours,strImageName):
+    image = np.zeros(imageSize, dtype=np.uint8)
+    cv2.drawContours(image, contours, -1,(255,255,255), -1)
+    cv2.imshow(strImageName, image);
+
+
+def drawAndShowBlobs(imageSize,blobs,strImageName):
+    image = np.zeros(imageSize, dtype=np.uint8)
+    contours = []
+    for blob in blobs:
+        if blob.blnStillBeingTracked == True:
+            contours.append(blob.currentContour)
+
+    cv2.drawContours(image, contours, -1,(255,255,255), -1);
+    cv2.imshow(strImageName, image);
+
+def distanceBetweenPoints(p1,p2):
+    intX = abs(point1[0] - point2[0])
+    intY = abs(point1[1] - point2[1])
+    return math.sqrt(math.pow(intX, 2) + math.pow(intY, 2))
+
+def matchCurrentFrameBlobsToExistingBlobs(existingBlobs,currentFrameBlobs):
+    for existingBlob in existingBlobs:
+        existingBlob.blnCurrentMatchFoundOrNewBlob = false;
+        existingBlob.predictNextPosition();
+
+    for currentFrameBlob in currentFrameBlobs:
+        intIndexOfLeastDistance = 0
+        dblLeastDistance = 100000.0
+
+        for i in range(len(existingBlobs)):
+            if (existingBlobs[i].blnStillBeingTracked == True):
+                dblDistance = distanceBetweenPoints(currentFrameBlob.centerPositions[-1], existingBlobs[i].predictedNextPosition)
+
+                if (dblDistance < dblLeastDistance):
+                    dblLeastDistance = dblDistance
+                    intIndexOfLeastDistance = i
+
+        if (dblLeastDistance < currentFrameBlob.dblCurrentDiagonalSize * 1.15):
+            addBlobToExistingBlobs(currentFrameBlob, existingBlobs, intIndexOfLeastDistance);
+        else:
+            addNewBlob(currentFrameBlob, existingBlobs);
+
+
+    for existingBlob in existingBlobs:
+        if (existingBlob.blnCurrentMatchFoundOrNewBlob == False):
+            existingBlob.intNumOfConsecutiveFramesWithoutAMatch +=1;
+
+        if (existingBlob.intNumOfConsecutiveFramesWithoutAMatch >= 5):
+            existingBlob.blnStillBeingTracked = False;
+
+
+
+def addBlobToExistingBlobs(currentFrameBlob,existingBlobs,i):
+    existingBlobs[i].currentContour = currentFrameBlob.currentContour;
+    existingBlobs[i].currentBoundingRect = currentFrameBlob.currentBoundingRect;
+
+    existingBlobs[i].centerPositions.append(currentFrameBlob.centerPositions[-1])
+
+    existingBlobs[i].dblCurrentDiagonalSize = currentFrameBlob.dblCurrentDiagonalSize;
+    existingBlobs[i].dblCurrentAspectRatio = currentFrameBlob.dblCurrentAspectRatio;
+
+    existingBlobs[i].blnStillBeingTracked = True;
+    existingBlobs[i].blnCurrentMatchFoundOrNewBlob = True;
+
+def addNewBlob(currentFrameBlob,existingBlobs):
+    currentFrameBlob.blnCurrentMatchFoundOrNewBlob = True
+    existingBlobs.append(currentFrameBlob)
+
+
+#CLASS
 class Blob:
     area = 0
     width = height = 0
@@ -17,8 +152,11 @@ class Blob:
 
 
     #functions
-    # def __del__(self):
-        # del self.centerPositions[:]
+    def __del__(self):
+        del self.centerPositions[:]
+
+    def printInfo(self):
+        print 'area: '+str(self.area)+' Pos: '+str(self.centerPositions)
 
     def __init__(self, _contour):
         self.currentContour = _contour
@@ -40,10 +178,6 @@ class Blob:
 
         intNumOfConsecutiveFramesWithoutAMatch = 0;
 
-    def printInfo(self):
-        print 'area: '+str(self.area)+' h: '+ str(self.height)+' w: ' \
-        +str(self.width)+' Pos: '+str(self.centerPositions)+' ratio: ' \
-        +str(self.dblCurrentAspectRatio)
 
     def predictNextPosition(self):
         numPositions = int(self.self.centerPositions.size())
@@ -111,51 +245,6 @@ class Blob:
             #should never get here
             pass
 
-    def matchCurrentFrameBlobsToExistingBlobs(self):
-        pass
-    def addBlobToExistingBlobs(self):
-        pass
-    def addNewBlob(self):
-        pass
-    def distanceBetweenPoints(self):
-        pass
-
-
-#FUNCTIONS
-def drawBlobInfoOnImage(blobs,imgFrame2Copy):
-    for i in range(len(blobs)):
-        # if (blobs[i].blnStillBeingTracked == True):
-        rect_corner1 = (blobs[i].currentBoundingRect[0],blobs[i].currentBoundingRect[1])
-        rect_corner2 = (blobs[i].currentBoundingRect[0]+blobs[i].width, blobs[i].currentBoundingRect[1]+blobs[i].height)
-        imgFrame2Copy = cv2.rectangle(imgFrame2Copy, rect_corner1,rect_corner2, (0,0,255))
-
-        intFontFace = cv2.FONT_HERSHEY_SIMPLEX;
-        dblFontScale = blobs[i].dblCurrentDiagonalSize / 60.0
-        intFontThickness = int(round(dblFontScale * 1.0))
-        # print len(blobs[i].centerPositions)
-        cv2.putText(imgFrame2Copy,str(i), blobs[i].centerPositions[-1], intFontFace, dblFontScale, (0,255,0), intFontThickness);
-
-def camread(host):
-    stream=urllib.urlopen(host)
-    bytes=''
-    while True:
-        bytes+=stream.read(1024)
-        a = bytes.find('\xff\xd8')
-        b = bytes.find('\xff\xd9')
-        if a!=-1 and b!=-1:
-            jpg = bytes[a:b+2]
-            bytes= bytes[b+2:]
-            i = cv2.imdecode(np.fromstring(jpg, dtype=np.uint8),-1)
-            return i
-
-def drawAndShowContours(imageSize,contours,strImageName):
-    image = np.zeros(imageSize, dtype=np.uint8)
-    cv2.drawContours(image, contours, -1,(255,255,255), -1)
-    cv2.imshow(strImageName, image);
-
-
-
-
 
 
 #MAIN CODE
@@ -167,51 +256,14 @@ if len(sys.argv)>1:
 host = 'http://' + host + '/video'
 print 'Streaming ' + host
 
+#capturing the first reference frame
+blnFirstFrame = True
+frameCount = 2
 imgFrame1 = camread(host)
 
 while True:
-    #capturing two reference frames
-    imgFrame2 = camread(host)
-
-    #making duplicates of the above frames
-    imgFrame1Copy = imgFrame1.copy()
-    imgFrame2Copy = imgFrame2.copy()
-
-    #changing the colorspace to grayscale
-    imgFrame1Copy = cv2.cvtColor(imgFrame1Copy,cv2.COLOR_BGR2GRAY)
-    imgFrame2Copy = cv2.cvtColor(imgFrame2Copy,cv2.COLOR_BGR2GRAY)
-
-    #applying gaussianblur
-    imgFrame1Copy = cv2.GaussianBlur(imgFrame1Copy,(5,5),0)
-    imgFrame2Copy = cv2.GaussianBlur(imgFrame2Copy,(5,5),0)
-
-    #finding the difference of the two frames and thresholding the diff
-    imgDifference = cv2.absdiff(imgFrame1Copy,imgFrame2Copy)
-    _,imgThresh = cv2.threshold(imgDifference,30,255,cv2.THRESH_BINARY)
-
-    # cv2.imshow("imgThresh",imgThresh)
-
-    #applying morphological operations dilation and erosion
-    kernel = np.ones((5,5),np.uint8)
-    imgThresh = cv2.dilate(imgThresh,kernel,iterations = 1)
-    imgThresh = cv2.dilate(imgThresh,kernel,iterations = 1)
-    imgThresh = cv2.erode(imgThresh,kernel,iterations = 1)
-
-
-    #finding contours of the thresholded image
-    contours, hierarchy = cv2.findContours(imgThresh,cv2.RETR_EXTERNAL,cv2.CHAIN_APPROX_SIMPLE)
-
-    #drawing contours
-    # drawAndShowContours(imgThresh.shape,contours,"contours")
-
-    # cv2.imshow("imgContours",imgContours)
-
-    #finding and drawing convex hulls
-    hulls = []  #used to store hulls
-    for cnt in contours:
-        hulls.append(cv2.convexHull(cnt))
-
-    drawAndShowContours(imgThresh.shape,hulls,"convexHulls")
+    #obtaining convex hulls and newly captured image
+    hulls,imgFrame2 = getDifferenceHulls()
 
     #Blob validation
     currentFrameBlobs = []
@@ -226,19 +278,26 @@ while True:
         possibleBlob.height > 20 and \
         possibleBlob.dblCurrentDiagonalSize > 30.0 and \
         (cv2.contourArea(possibleBlob.currentContour) / float(possibleBlob.area)) > 0.40):
-            currentFrameBlobs.append(hull)
-            blobs.append(possibleBlob)
 
+            currentFrameBlobs.append(possibleBlob)
+            # possibleBlob.printInfo()
         del possibleBlob
 
     imgFrame1 = imgFrame2.copy()
 
-    # print len(currentFrameBlobs)
     if(len(currentFrameBlobs) > 0):
-        drawAndShowContours(imgThresh.shape,contours,"convexHulls")
-        drawBlobInfoOnImage(blobs,imgFrame2)
+        drawAndShowBlobs(imgFrame2.shape,currentFrameBlobs,"imgCurrentFrameBlobs")
+        drawBlobInfoOnImage(currentFrameBlobs,imgFrame2)
+
+    if blnFirstFrame == True:
+        for currentFrameBlob in currentFrameBlobs:
+            blobs.append(currentFrameBlob)
+    else:
+        pass
+        matchCurrentFrameBlobsToExistingBlobs(blobs,currentFrameBlobs)
 
     cv2.imshow("output",imgFrame2)
-    cv2.waitKey(10)
-    del blobs[:]
+    blnFirstFrame = False
+    frameCount += 1
     del currentFrameBlobs[:]
+    cv2.waitKey(10)
