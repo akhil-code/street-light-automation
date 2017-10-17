@@ -42,21 +42,19 @@ def getDifferenceHulls():
     return hulls,imgFrame2
 
 def drawBlobInfoOnImage(blobs,imgFrame2Copy):
-    font = cv2.FONT_HERSHEY_SIMPLEX
-    cv2.putText(imgFrame2Copy,'OpenCV',(100,100), font, 4,(0,0,0),50)
-
+    print len(blobs)
     for i in range(len(blobs)):
         if (blobs[i].blnStillBeingTracked == True):
             rect_corner1 = (blobs[i].currentBoundingRect[0],blobs[i].currentBoundingRect[1])
             rect_corner2 = (blobs[i].currentBoundingRect[0]+blobs[i].width, blobs[i].currentBoundingRect[1]+blobs[i].height)
-            imgFrame2Copy = cv2.rectangle(imgFrame2Copy, rect_corner1,rect_corner2, (0,0,255))
-
 
             intFontFace = cv2.FONT_HERSHEY_SIMPLEX;
             dblFontScale = blobs[i].dblCurrentDiagonalSize / 60.0
             intFontThickness = int(round(dblFontScale * 1.0))
-            # print 'printing: '+str(i) + ' pos: '+str(blobs[i].centerPositions[-1])
-            # cv2.putText(imgFrame2Copy,'obj',((rect_corner1[0]+rect_corner2[0])/2,(rect_corner1[1]+rect_corner2[1])/2), font,20,(0,0,0),50);
+            point = ((rect_corner1[0]+rect_corner2[0])/2,(rect_corner1[1]+rect_corner2[1])/2)
+            cv2.putText(imgFrame2Copy, str(i), blobs[i].centerPositions[-1], intFontFace, dblFontScale, (0,255,0), intFontThickness);
+
+            cv2.rectangle(imgFrame2Copy, rect_corner1,rect_corner2, (0,0,255))
 
 def camread(host):
     stream=urllib.urlopen(host)
@@ -94,8 +92,8 @@ def distanceBetweenPoints(point1,point2):
 
 def matchCurrentFrameBlobsToExistingBlobs(existingBlobs,currentFrameBlobs):
     for existingBlob in existingBlobs:
-        existingBlob.blnCurrentMatchFoundOrNewBlob = False;
-        existingBlob.predictNextPosition();
+        existingBlob.blnCurrentMatchFoundOrNewBlob = False
+        existingBlob.predictNextPosition()
 
     for currentFrameBlob in currentFrameBlobs:
         intIndexOfLeastDistance = 0
@@ -104,15 +102,15 @@ def matchCurrentFrameBlobsToExistingBlobs(existingBlobs,currentFrameBlobs):
         for i in range(len(existingBlobs)):
             if (existingBlobs[i].blnStillBeingTracked == True):
                 dblDistance = distanceBetweenPoints(currentFrameBlob.centerPositions[-1], existingBlobs[i].predictedNextPosition)
-
+                # print dblDistance
                 if (dblDistance < dblLeastDistance):
                     dblLeastDistance = dblDistance
                     intIndexOfLeastDistance = i
 
         if (dblLeastDistance < currentFrameBlob.dblCurrentDiagonalSize * 1.15):
-            addBlobToExistingBlobs(currentFrameBlob, existingBlobs, intIndexOfLeastDistance);
+            addBlobToExistingBlobs(currentFrameBlob, existingBlobs, intIndexOfLeastDistance)
         else:
-            addNewBlob(currentFrameBlob, existingBlobs);
+            addNewBlob(currentFrameBlob, existingBlobs)
 
 
     for existingBlob in existingBlobs:
@@ -123,6 +121,7 @@ def matchCurrentFrameBlobsToExistingBlobs(existingBlobs,currentFrameBlobs):
             existingBlob.blnStillBeingTracked = False;
 
 def addBlobToExistingBlobs(currentFrameBlob,existingBlobs,i):
+    # print 'found continuos blob'
     existingBlobs[i].currentContour = currentFrameBlob.currentContour;
     existingBlobs[i].currentBoundingRect = currentFrameBlob.currentBoundingRect;
 
@@ -141,27 +140,15 @@ def addNewBlob(currentFrameBlob,existingBlobs):
 
 #CLASS
 class Blob:
-    area = 0
-    width = height = 0
-    currentContour = 0
-    currentBoundingRect = 0
-    centerPositions = []
-    dblCurrentDiagonalSize = 0.0
-    dblCurrentAspectRatio = 0.0
-    blnCurrentMatchFoundOrNewBlob = False
-    blnStillBeingTracked = False
-    intNumOfConsecutiveFramesWithoutAMatch = 0
-    predictedNextPosition = [-1,-1]
-
-
     #functions
-    # def __del__(self):
-        # del self.centerPositions[:]
-
     def printInfo(self):
         print 'area: '+str(self.area)+' Pos: '+str(self.centerPositions)
 
     def __init__(self, _contour):
+
+        self.centerPositions = []
+        self.predictedNextPosition = [-1,-1]
+
         self.currentContour = _contour
         self.currentBoundingRect = cv2.boundingRect(self.currentContour)  #x,y,w,h
         x = (self.currentBoundingRect[0] + self.currentBoundingRect[0] + self.currentBoundingRect[2])/2
@@ -181,10 +168,8 @@ class Blob:
 
         self.intNumOfConsecutiveFramesWithoutAMatch = 0;
 
-
     def predictNextPosition(self):
         numPositions = len(self.centerPositions)
-
         if (numPositions == 1):
             self.predictedNextPosition[0] = self.centerPositions[-1][0]
             self.predictedNextPosition[1] = self.centerPositions[-1][1]
@@ -282,6 +267,7 @@ while True:
         (cv2.contourArea(possibleBlob.currentContour) / float(possibleBlob.area)) > 0.40):
 
             currentFrameBlobs.append(possibleBlob)
+            # possibleBlob.printInfo()
         del possibleBlob
 
     imgFrame1 = imgFrame2.copy()
@@ -290,12 +276,13 @@ while True:
         drawAndShowBlobs(imgFrame2.shape,currentFrameBlobs,"imgCurrentFrameBlobs")
         drawBlobInfoOnImage(currentFrameBlobs,imgFrame2)
 
-
     if blnFirstFrame == True:
         for currentFrameBlob in currentFrameBlobs:
             blobs.append(currentFrameBlob)
     else:
         matchCurrentFrameBlobsToExistingBlobs(blobs,currentFrameBlobs)
+
+    drawAndShowBlobs(imgFrame2.shape,blobs,"imgBlobs")
 
     # print len(blobs)
 
