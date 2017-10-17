@@ -4,7 +4,7 @@ import numpy as np
 #FUNCTIONS
 
 #executes first part of the program. i.e to find the difference between two frames
-def getDifferenceHulls():
+def getDifferenceHulls(host):
     #capturing two reference frames
     imgFrame2 = camread(host)
 
@@ -249,7 +249,7 @@ class Blob:
 #MAIN CODE
 
 #control parameters associated with IP camera mobile application
-host = "192.168.43.1:8080"
+host = "192.168.43.1:8080"  #IP address of the server obtained in the mobile app
 if len(sys.argv)>1:
     host = sys.argv[1]
 host = 'http://' + host + '/video'
@@ -257,13 +257,13 @@ print 'Streaming ' + host
 
 #variables used within the infinite loop
 blnFirstFrame = True
-frameCount = 2  #counts the number of frames captured
-imgFrame1 = camread(host) #capturing the first reference frame
-blobs = []  #captures all the new blobs found
+frameCount = 2              #counts the number of frames captured
+imgFrame1 = camread(host)   #capturing the first reference frame
+blobs = []                  #captures all the new blobs found
 
 while True:
     #obtaining convex hulls and newly captured image
-    hulls,imgFrame2 = getDifferenceHulls()
+    hulls,imgFrame2 = getDifferenceHulls(host)
 
     #Blob validation
     currentFrameBlobs = []
@@ -304,6 +304,6 @@ while True:
     cv2.imshow("output",imgFrame2)
     #flagging the further frames
     blnFirstFrame = False
-    frameCount += 1     #increments the number of frames
+    frameCount += 1             #increments the number of frames
     del currentFrameBlobs[:]    #clearing the currentFrameBlobs to capture newly formed blobs
     cv2.waitKey(10)

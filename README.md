@@ -1,10 +1,10 @@
-# Minor Project
+## Minor Project
 
-### Team members:
+#### Team members:
 Akhil Guttula,
 Amit Kaushal,
 Deepak,
-Lipsoo
+Lipsoo. (NIT Kurukshetra)
 
 **Softwares used:** python + OpenCV,
 **Camera Application:** IP Webcam (Android)
