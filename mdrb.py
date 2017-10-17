@@ -2,6 +2,8 @@ import cv2,urllib,sys,math
 import numpy as np
 
 #FUNCTIONS
+
+#executes first part of the program. i.e to find the difference between two frames
 def getDifferenceHulls():
     #capturing two reference frames
     imgFrame2 = camread(host)
@@ -41,6 +43,7 @@ def getDifferenceHulls():
 
     return hulls,imgFrame2
 
+#draws the rectangles on the motion detected object
 def drawBlobInfoOnImage(blobs,imgFrame2Copy):
     print len(blobs)
     for i in range(len(blobs)):
@@ -56,6 +59,7 @@ def drawBlobInfoOnImage(blobs,imgFrame2Copy):
 
             cv2.rectangle(imgFrame2Copy, rect_corner1,rect_corner2, (0,0,255))
 
+#reads the data stream and decodes the image from it
 def camread(host):
     stream=urllib.urlopen(host)
     bytes=''
@@ -69,12 +73,15 @@ def camread(host):
             i = cv2.imdecode(np.fromstring(jpg, dtype=np.uint8),-1)
             return i
 
+#draws the contours on the image
 def drawAndShowContours(imageSize,contours,strImageName):
     image = np.zeros(imageSize, dtype=np.uint8)
     cv2.drawContours(image, contours, -1,(255,255,255), -1)
     cv2.imshow(strImageName, image);
 
-
+#draws the contours similar to the drawAndShowContours function
+#but here the input provided is not the contours but object of class
+#Blob
 def drawAndShowBlobs(imageSize,blobs,strImageName):
     image = np.zeros(imageSize, dtype=np.uint8)
     contours = []
@@ -85,11 +92,13 @@ def drawAndShowBlobs(imageSize,blobs,strImageName):
     cv2.drawContours(image, contours, -1,(255,255,255), -1);
     cv2.imshow(strImageName, image);
 
+#find the distance between two points p1 and p2
 def distanceBetweenPoints(point1,point2):
     intX = abs(point1[0] - point2[0])
     intY = abs(point1[1] - point2[1])
     return math.sqrt(math.pow(intX, 2) + math.pow(intY, 2))
 
+#matching algorithm to corelate two blob objects by matching it with the expected one
 def matchCurrentFrameBlobsToExistingBlobs(existingBlobs,currentFrameBlobs):
     for existingBlob in existingBlobs:
         existingBlob.blnCurrentMatchFoundOrNewBlob = False
@@ -120,6 +129,7 @@ def matchCurrentFrameBlobsToExistingBlobs(existingBlobs,currentFrameBlobs):
         if (existingBlob.intNumOfConsecutiveFramesWithoutAMatch >= 5):
             existingBlob.blnStillBeingTracked = False;
 
+#adds the details of the matching blob to the existingBlob
 def addBlobToExistingBlobs(currentFrameBlob,existingBlobs,i):
     # print 'found continuos blob'
     existingBlobs[i].currentContour = currentFrameBlob.currentContour;
@@ -133,12 +143,14 @@ def addBlobToExistingBlobs(currentFrameBlob,existingBlobs,i):
     existingBlobs[i].blnStillBeingTracked = True;
     existingBlobs[i].blnCurrentMatchFoundOrNewBlob = True;
 
+#adds new blob to the list
 def addNewBlob(currentFrameBlob,existingBlobs):
     currentFrameBlob.blnCurrentMatchFoundOrNewBlob = True
     existingBlobs.append(currentFrameBlob)
 
 
 #CLASS
+#class Blob consisting of variables and functions related to it
 class Blob:
     #functions
     def printInfo(self):
@@ -236,18 +248,18 @@ class Blob:
 
 #MAIN CODE
 
-#control parameters associated with IP camera
+#control parameters associated with IP camera mobile application
 host = "192.168.43.1:8080"
 if len(sys.argv)>1:
     host = sys.argv[1]
 host = 'http://' + host + '/video'
 print 'Streaming ' + host
 
-#capturing the first reference frame
+#variables used within the infinite loop
 blnFirstFrame = True
-frameCount = 2
-imgFrame1 = camread(host)
-blobs = []
+frameCount = 2  #counts the number of frames captured
+imgFrame1 = camread(host) #capturing the first reference frame
+blobs = []  #captures all the new blobs found
 
 while True:
     #obtaining convex hulls and newly captured image
@@ -258,6 +270,7 @@ while True:
     for hull in hulls:
         possibleBlob = Blob(hull)
 
+        #conditions to approximate the blobs
         if (possibleBlob.area > 100 and \
         possibleBlob.dblCurrentAspectRatio >= 0.2 and \
         possibleBlob.dblCurrentAspectRatio <= 1.75 and \
@@ -270,24 +283,27 @@ while True:
             # possibleBlob.printInfo()
         del possibleBlob
 
+    #replacing the frame1 with frame2, so that newly captured frame can be stored in frame2
     imgFrame1 = imgFrame2.copy()
 
+    #displaying any movement in the output screen
     if(len(currentFrameBlobs) > 0):
         drawAndShowBlobs(imgFrame2.shape,currentFrameBlobs,"imgCurrentFrameBlobs")
         drawBlobInfoOnImage(currentFrameBlobs,imgFrame2)
 
+    #checks if the frame is the first frame of the video
     if blnFirstFrame == True:
         for currentFrameBlob in currentFrameBlobs:
             blobs.append(currentFrameBlob)
     else:
         matchCurrentFrameBlobsToExistingBlobs(blobs,currentFrameBlobs)
 
+    #displays the blobs on the screen that are consistent or matched
     drawAndShowBlobs(imgFrame2.shape,blobs,"imgBlobs")
 
-    # print len(blobs)
-
     cv2.imshow("output",imgFrame2)
+    #flagging the further frames
     blnFirstFrame = False
-    frameCount += 1
-    del currentFrameBlobs[:]
+    frameCount += 1     #increments the number of frames
+    del currentFrameBlobs[:]    #clearing the currentFrameBlobs to capture newly formed blobs
     cv2.waitKey(10)
