@@ -1,10 +1,12 @@
 # Minor Project
 
-###Team members:
+### Team members:
 Akhil Guttula
 Amit Kaushal
 Deepak
 Lipsoo
 
-### Softwares used: python + OpenCV
-### Camera Application: IP Webcam (Android)
+### Softwares used:
+python + OpenCV
+### Camera Application:
+IP Webcam (Android)
