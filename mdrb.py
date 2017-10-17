@@ -42,16 +42,21 @@ def getDifferenceHulls():
     return hulls,imgFrame2
 
 def drawBlobInfoOnImage(blobs,imgFrame2Copy):
-    for i in range(len(blobs)):
-        # if (blobs[i].blnStillBeingTracked == True):
-        rect_corner1 = (blobs[i].currentBoundingRect[0],blobs[i].currentBoundingRect[1])
-        rect_corner2 = (blobs[i].currentBoundingRect[0]+blobs[i].width, blobs[i].currentBoundingRect[1]+blobs[i].height)
-        imgFrame2Copy = cv2.rectangle(imgFrame2Copy, rect_corner1,rect_corner2, (0,0,255))
+    font = cv2.FONT_HERSHEY_SIMPLEX
+    cv2.putText(imgFrame2Copy,'OpenCV',(100,100), font, 4,(0,0,0),50)
 
-        # intFontFace = cv2.FONT_HERSHEY_SIMPLEX;
-        # dblFontScale = blobs[i].dblCurrentDiagonalSize / 60.0
-        # intFontThickness = int(round(dblFontScale * 1.0))
-        # cv2.putText(imgFrame2Copy,str(i), blobs[i].centerPositions[0], intFontFace, dblFontScale, (0,255,0), intFontThickness);
+    for i in range(len(blobs)):
+        if (blobs[i].blnStillBeingTracked == True):
+            rect_corner1 = (blobs[i].currentBoundingRect[0],blobs[i].currentBoundingRect[1])
+            rect_corner2 = (blobs[i].currentBoundingRect[0]+blobs[i].width, blobs[i].currentBoundingRect[1]+blobs[i].height)
+            imgFrame2Copy = cv2.rectangle(imgFrame2Copy, rect_corner1,rect_corner2, (0,0,255))
+
+
+            intFontFace = cv2.FONT_HERSHEY_SIMPLEX;
+            dblFontScale = blobs[i].dblCurrentDiagonalSize / 60.0
+            intFontThickness = int(round(dblFontScale * 1.0))
+            # print 'printing: '+str(i) + ' pos: '+str(blobs[i].centerPositions[-1])
+            # cv2.putText(imgFrame2Copy,'obj',((rect_corner1[0]+rect_corner2[0])/2,(rect_corner1[1]+rect_corner2[1])/2), font,20,(0,0,0),50);
 
 def camread(host):
     stream=urllib.urlopen(host)
@@ -82,14 +87,14 @@ def drawAndShowBlobs(imageSize,blobs,strImageName):
     cv2.drawContours(image, contours, -1,(255,255,255), -1);
     cv2.imshow(strImageName, image);
 
-def distanceBetweenPoints(p1,p2):
+def distanceBetweenPoints(point1,point2):
     intX = abs(point1[0] - point2[0])
     intY = abs(point1[1] - point2[1])
     return math.sqrt(math.pow(intX, 2) + math.pow(intY, 2))
 
 def matchCurrentFrameBlobsToExistingBlobs(existingBlobs,currentFrameBlobs):
     for existingBlob in existingBlobs:
-        existingBlob.blnCurrentMatchFoundOrNewBlob = false;
+        existingBlob.blnCurrentMatchFoundOrNewBlob = False;
         existingBlob.predictNextPosition();
 
     for currentFrameBlob in currentFrameBlobs:
@@ -116,8 +121,6 @@ def matchCurrentFrameBlobsToExistingBlobs(existingBlobs,currentFrameBlobs):
 
         if (existingBlob.intNumOfConsecutiveFramesWithoutAMatch >= 5):
             existingBlob.blnStillBeingTracked = False;
-
-
 
 def addBlobToExistingBlobs(currentFrameBlob,existingBlobs,i):
     existingBlobs[i].currentContour = currentFrameBlob.currentContour;
@@ -148,12 +151,12 @@ class Blob:
     blnCurrentMatchFoundOrNewBlob = False
     blnStillBeingTracked = False
     intNumOfConsecutiveFramesWithoutAMatch = 0
-    predictedNextPosition = 0
+    predictedNextPosition = [-1,-1]
 
 
     #functions
-    def __del__(self):
-        del self.centerPositions[:]
+    # def __del__(self):
+        # del self.centerPositions[:]
 
     def printInfo(self):
         print 'area: '+str(self.area)+' Pos: '+str(self.centerPositions)
@@ -173,25 +176,25 @@ class Blob:
         self.dblCurrentDiagonalSize = math.sqrt(math.pow(self.currentBoundingRect[2], 2) + math.pow(self.currentBoundingRect[3], 2));
         self.dblCurrentAspectRatio = float(self.currentBoundingRect[2])/float(self.currentBoundingRect[3])
 
-        blnStillBeingTracked = True;
-        blnCurrentMatchFoundOrNewBlob = True;
+        self.blnStillBeingTracked = True;
+        self.blnCurrentMatchFoundOrNewBlob = True;
 
-        intNumOfConsecutiveFramesWithoutAMatch = 0;
+        self.intNumOfConsecutiveFramesWithoutAMatch = 0;
 
 
     def predictNextPosition(self):
-        numPositions = int(self.self.centerPositions.size())
+        numPositions = len(self.centerPositions)
 
         if (numPositions == 1):
-            predictedNextPosition[0] = self.self.centerPositions[-1][0]
-            predictedNextPosition[1] = self.centerPositions[-1][1]
+            self.predictedNextPosition[0] = self.centerPositions[-1][0]
+            self.predictedNextPosition[1] = self.centerPositions[-1][1]
 
         elif (numPositions == 2):
             deltaX = self.centerPositions[1][0] - self.centerPositions[0][0]
             deltaY = self.centerPositions[1][1] - self.centerPositions[0][1]
 
-            predictedNextPosition[0] = self.centerPositions[-1][0] + deltaX
-            predictedNextPosition[1] = self.centerPositions[-1][1] + deltaY
+            self.predictedNextPosition[0] = self.centerPositions[-1][0] + deltaX
+            self.predictedNextPosition[1] = self.centerPositions[-1][1] + deltaY
 
         elif (numPositions == 3):
             sumOfXChanges = ((self.centerPositions[2][0] - self.centerPositions[1][1]) * 2) + \
@@ -204,8 +207,8 @@ class Blob:
 
             deltaY = int(round(float(sumOfYChanges) / 3.0))
 
-            predictedNextPosition[0] = self.centerPositions[-1][0] + deltaX
-            predictedNextPosition[1] = self.centerPositions[-1][1] + deltaY
+            self.predictedNextPosition[0] = self.centerPositions[-1][0] + deltaX
+            self.predictedNextPosition[1] = self.centerPositions[-1][1] + deltaY
 
         elif (numPositions == 4) :
             sumOfXChanges = ((self.centerPositions[3][0] - self.centerPositions[2][0]) * 3) + \
@@ -220,8 +223,8 @@ class Blob:
 
             deltaY = int(round(float(sumOfYChanges) / 6.0))
 
-            predictedNextPosition[0] = self.centerPositions[-1][0] + deltaX;
-            predictedNextPosition[1] = self.centerPositions[-1][1] + deltaY;
+            self.predictedNextPosition[0] = self.centerPositions[-1][0] + deltaX;
+            self.predictedNextPosition[1] = self.centerPositions[-1][1] + deltaY;
 
         elif (numPositions >= 5):
             sumOfXChanges = ((self.centerPositions[numPositions - 1][0] - self.centerPositions[numPositions - 2][0]) * 4) + \
@@ -238,13 +241,12 @@ class Blob:
 
             deltaY = int(round(float(sumOfYChanges) / 10.0))
 
-            predictedNextPosition[0] = self.centerPositions[-1][0] + deltaX;
-            predictedNextPosition[1] = self.centerPositions[-1][1] + deltaY;
+            self.predictedNextPosition[0] = self.centerPositions[-1][0] + deltaX;
+            self.predictedNextPosition[1] = self.centerPositions[-1][1] + deltaY;
 
         else:
             #should never get here
             pass
-
 
 
 #MAIN CODE
@@ -260,6 +262,7 @@ print 'Streaming ' + host
 blnFirstFrame = True
 frameCount = 2
 imgFrame1 = camread(host)
+blobs = []
 
 while True:
     #obtaining convex hulls and newly captured image
@@ -267,7 +270,6 @@ while True:
 
     #Blob validation
     currentFrameBlobs = []
-    blobs = []
     for hull in hulls:
         possibleBlob = Blob(hull)
 
@@ -280,7 +282,6 @@ while True:
         (cv2.contourArea(possibleBlob.currentContour) / float(possibleBlob.area)) > 0.40):
 
             currentFrameBlobs.append(possibleBlob)
-            # possibleBlob.printInfo()
         del possibleBlob
 
     imgFrame1 = imgFrame2.copy()
@@ -289,12 +290,14 @@ while True:
         drawAndShowBlobs(imgFrame2.shape,currentFrameBlobs,"imgCurrentFrameBlobs")
         drawBlobInfoOnImage(currentFrameBlobs,imgFrame2)
 
+
     if blnFirstFrame == True:
         for currentFrameBlob in currentFrameBlobs:
             blobs.append(currentFrameBlob)
     else:
-        pass
         matchCurrentFrameBlobsToExistingBlobs(blobs,currentFrameBlobs)
+
+    # print len(blobs)
 
     cv2.imshow("output",imgFrame2)
     blnFirstFrame = False
