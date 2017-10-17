@@ -45,7 +45,6 @@ def getDifferenceHulls(host):
 
 #draws the rectangles on the motion detected object
 def drawBlobInfoOnImage(blobs,imgFrame2Copy):
-    print len(blobs)
     for i in range(len(blobs)):
         if (blobs[i].blnStillBeingTracked == True):
             rect_corner1 = (blobs[i].currentBoundingRect[0],blobs[i].currentBoundingRect[1])
