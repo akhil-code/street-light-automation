@@ -4,9 +4,9 @@ import numpy as np
 #FUNCTIONS
 
 #executes first part of the program. i.e to find the difference between two frames
-def getDifferenceHulls(host):
+def getDifferenceHulls(cap):
     #capturing two reference frames
-    imgFrame2 = camread(host)
+    _,imgFrame2 = cap.read()
 
     #making duplicates of the above frames
     imgFrame1Copy = imgFrame1.copy()
@@ -58,20 +58,6 @@ def drawBlobInfoOnImage(blobs,imgFrame2Copy):
 
             cv2.rectangle(imgFrame2Copy, rect_corner1,rect_corner2, (0,0,255))
 
-
-#reads the data stream and decodes the image from it
-def camread(host):
-    stream=urllib.urlopen(host)
-    bytes=''
-    while True:
-        bytes+=stream.read(1024)
-        a = bytes.find('\xff\xd8')
-        b = bytes.find('\xff\xd9')
-        if a!=-1 and b!=-1:
-            jpg = bytes[a:b+2]
-            bytes= bytes[b+2:]
-            i = cv2.imdecode(np.fromstring(jpg, dtype=np.uint8),-1)
-            return i
 
 #draws the contours on the image
 def drawAndShowContours(imageSize,contours,strImageName):
@@ -165,12 +151,15 @@ class Blob:
         self.currentBoundingRect = cv2.boundingRect(self.currentContour)  #x,y,w,h
         x = (self.currentBoundingRect[0] + self.currentBoundingRect[0] + self.currentBoundingRect[2])/2
         y = (self.currentBoundingRect[1] + self.currentBoundingRect[1] + self.currentBoundingRect[3]) / 2
-        currentCenter = (x,y)
+        self.currentCenter = (x,y)
         self.width = self.currentBoundingRect[2]
         self.height =  self.currentBoundingRect[3]
         self.area = self.currentBoundingRect[2] * self.currentBoundingRect[3]
 
-        self.centerPositions.append(currentCenter)
+        self.inside = isWithinEllipse(x,y+(self.height/2))
+
+
+        self.centerPositions.append(self.currentCenter)
 
         self.dblCurrentDiagonalSize = math.sqrt(math.pow(self.currentBoundingRect[2], 2) + math.pow(self.currentBoundingRect[3], 2));
         self.dblCurrentAspectRatio = float(self.currentBoundingRect[2])/float(self.currentBoundingRect[3])
@@ -245,25 +234,36 @@ class Blob:
             #should never get here
             pass
 
+def detect_point(event,x,y,flags,param):
+    if event == cv2.EVENT_LBUTTONDBLCLK:
+        print (x,y)
+
+
+def isWithinEllipse(x,y):
+    # print ((math.pow((x-436),2))/22500) +((math.pow((y-381),2))/5625)
+    if ((math.pow((x-436),2))/40000) +((math.pow((y-381),2))/10000)  <= 1:
+        return True
+    else:
+        return False
 
 #MAIN CODE
 
-#control parameters associated with IP camera mobile application
-host = "192.168.43.1:8080"  #IP address of the server obtained in the mobile app
-if len(sys.argv)>1:
-    host = sys.argv[1]
-host = 'http://' + host + '/video'
-print 'Streaming ' + host
+cap = cv2.VideoCapture('video.avi')
+light = cv2.imread('light.jpg')
+ref_rows,ref_cols,_ = light.shape
 
 #variables used within the infinite loop
 blnFirstFrame = True
 frameCount = 2              #counts the number of frames captured
-imgFrame1 = camread(host)   #capturing the first reference frame
+if cap.isOpened():
+    _,imgFrame1 = cap.read()   #capturing the first reference frame
+else:
+    sys.exit()
 blobs = []                  #captures all the new blobs found
 
-while True:
+while cap.isOpened():
     #obtaining convex hulls and newly captured image
-    hulls,imgFrame2 = getDifferenceHulls(host)
+    hulls,imgFrame2 = getDifferenceHulls(cap)
 
     #Blob validation
     currentFrameBlobs = []
@@ -286,6 +286,9 @@ while True:
     #replacing the frame1 with frame2, so that newly captured frame can be stored in frame2
     imgFrame1 = imgFrame2.copy()
 
+    #mouse tracking
+    cv2.setMouseCallback('output',detect_point)
+
     #displaying any movement in the output screen
     if(len(currentFrameBlobs) > 0):
         drawAndShowBlobs(imgFrame2.shape,currentFrameBlobs,"imgCurrentFrameBlobs")
@@ -301,9 +304,25 @@ while True:
     #displays the blobs on the screen that are consistent or matched
     drawAndShowBlobs(imgFrame2.shape,blobs,"imgBlobs")
 
+
+    cv2.ellipse(imgFrame2, (436,381), (200,100), 0, 0, 360, (0,0,255), 5)
+    peopleCount = 0
+    for currentFrameBlob in currentFrameBlobs:
+        if currentFrameBlob.inside:
+            peopleCount += 1
+            cv2.line(imgFrame2,currentFrameBlob.currentCenter,(currentFrameBlob.currentCenter[0],currentFrameBlob.currentCenter[1]+currentFrameBlob.height/2),[255,0,0],2)
+    # print peopleCount
+
+    if peopleCount > 0:
+        imgFrame2[20:20+ref_rows, 380:380+ref_cols ] = light
+        pass
+
     cv2.imshow("output",imgFrame2)
     #flagging the further frames
     blnFirstFrame = False
     frameCount += 1             #increments the number of frames
     del currentFrameBlobs[:]    #clearing the currentFrameBlobs to capture newly formed blobs
-    cv2.waitKey(10)
+    cv2.waitKey(85)
+
+cap.release()
+cv2.destroyAllWindows()
