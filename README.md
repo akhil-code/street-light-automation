@@ -17,7 +17,7 @@ These instructions will get you a copy of the project up and running on your loc
 #### Application Settings
 + video resolution: 480x360,
 + quality: 90
-
+---
 ### Future plans
 + Will use deep learning inorder to identify the person rather than only detecting him/her.
 
